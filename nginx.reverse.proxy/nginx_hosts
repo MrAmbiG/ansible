@@ -1,0 +1,7 @@
+[nginx:vars]
+ansible_python_interpreter=/usr/bin/python3
+ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+
+
+[nginx]
+10.10.10.10 ansible_ssh_user=master ansible_ssh_pass='example' ansible_sudo_pass='example'

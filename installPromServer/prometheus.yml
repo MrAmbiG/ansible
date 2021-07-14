@@ -1,0 +1,84 @@
+---
+# Deploy prometheus server with thanos sidecar and thanos querier
+- hosts: promservers
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: prometheus config directory
+      file:
+        path: /monitor/prometheus
+        state: directory
+
+    - name: copy prometheus config file
+      copy: src=config.yml dest=/monitor/prometheus/prometheus.yml force=yes
+
+    - name: Create a network
+      docker_network:
+        name: monitoring
+
+    - name: prometheus server container
+      docker_container:
+        name: prometheus_server
+        hostname: prometheus_server
+        image: prom/prometheus:v2.28.1
+        state: started
+        restart_policy: "always"
+        restart: yes
+        command:
+          - "--config.file=/etc/prometheus/prometheus.yml"
+          - "--storage.tsdb.path=/prometheus"
+          - "--log.level=debug"
+          - "--web.enable-lifecycle"
+          - "--storage.tsdb.min-block-duration=2h"
+          - "--storage.tsdb.max-block-duration=2h"
+          - "--web.listen-address=0.0.0.0:9090"
+        volumes:
+          - "/monitor/prometheus:/etc/prometheus"
+          - "prometheus_data:/prometheus"
+        published_ports:
+          - "9090"
+        networks:
+          - name: "monitoring"
+
+    - name: thanos sidecar
+      docker_container:
+        name: thanosSidecar
+        hostname: thanos_sidecar
+        image: thanosio/thanos:v0.21.1
+        state: started
+        command:
+          - "sidecar"
+          - "--debug.name=sidecar"
+          - "--log.level=debug"
+          - "--grpc-address=0.0.0.0:10911"
+          - "--grpc-grace-period=1s"
+          - "--http-address=0.0.0.0:10912"
+          - "--http-grace-period=1s"
+          - "--prometheus.url=http://prometheus_server:9090"
+          - "--tsdb.path=/prometheus"
+        volumes:
+          - "prometheus_data:/prometheus"
+        published_ports:
+          - "10911"
+        networks:
+        - name: "monitoring"
+
+    - name: thanos querier
+      docker_container:
+        name: thanosquery
+        image: thanosio/thanos:v0.21.1
+        state: started
+        command:
+          - "query"
+          - "--debug.name=query0"
+          - "--log.level=debug"
+          - "--grpc-address=0.0.0.0:10903"
+          - "--grpc-grace-period=1s"
+          - "--http-address=0.0.0.0:10905"
+          - "--http-grace-period=1s"
+          - "--query.replica-label=prometheus"
+          - "--store=thanos_sidecar:10911"
+        ports:
+          - "9090:10903"
+        networks:
+          - name: "monitoring"

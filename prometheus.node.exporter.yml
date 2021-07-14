@@ -1,0 +1,36 @@
+---
+# Always restarts the docker if it fails, starts it with the system, just like a systemd daemon
+- hosts: agents
+  become: yes
+  tasks:
+    - name: prometheus node exporter container
+      docker_container:
+        name: prometheus-node-exporter
+        image: prom/node-exporter
+        state: started
+        restart_policy: "always"
+        restart: yes
+        privileged: yes
+        network_mode: host
+        pid_mode: host
+        ports:
+          - "9100:9100"
+        entrypoint: /bin/node_exporter --collector.conntrack --collector.cpu --collector.diskstats --collector.entropy --collector.filefd --collector.filesystem --collector.loadavg --collector.mdadm --collector.meminfo --collector.netdev --collector.netstat --collector.stat --collector.textfile --collector.time --collector.vmstat --collector.systemd --collector.logind
+
+    - name: cadvisor docker metrics exporter
+      docker_container:
+        name: cadvisor
+        image: gcr.io/cadvisor/cadvisor
+        state: started
+        restart_policy: always
+        restart: yes
+        volumes:
+          - "/:/rootfs:ro"
+          - "/var/run:/var/run:ro"
+          - "/sys:/sys:ro"
+          - "/var/lib/docker/:/var/lib/docker:ro"
+          - "/dev/disk/:/dev/disk:ro"
+        devices:
+          - "/dev/kmsg"
+        ports:
+          - "9101:8080"

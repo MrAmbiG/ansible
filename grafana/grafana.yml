@@ -1,0 +1,32 @@
+---
+# Deploy grafana as a docker container with persistent data. update the smtp settings in grafana.ini under [smtp]. search for "#change this" in ldap.toml to update ldap settings.
+- hosts: grafana
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: grafana directory
+      file:
+        path: /monitoring/grafana
+        state: directory
+
+    - name: copy grafana config file
+      copy: src=grafana.ini dest=/monitoring/grafana/grafana.ini force=yes
+
+    - name: copy grafana ldap config file
+      copy: src=ldap.toml dest=/monitoring/grafana/ldap.toml force=yes
+
+    - name: change ownership of directory /monitoring/grafana
+      command: chown -R 472:472 /monitoring/grafana
+
+    - name: grafana server
+      docker_container:
+        name: grafana
+        image: grafana/grafana
+        state: started
+        restart_policy: always
+        ports:
+          - 3000:3000
+        volumes:
+          - /monitoring/grafana/grafana.ini:/etc/grafana/grafana.ini
+          - /monitoring/grafana/ldap.toml:/etc/grafana/ldap.toml
+          - grafana-storage:/var/lib/grafana
